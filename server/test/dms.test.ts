@@ -365,3 +365,34 @@ describe("reports", () => {
     for (const a of ["deal.close", "deal.approve", "deal.reject", "vehicle.create", "service.close", "document.upload", "lead.create"]) expect(actions.has(a), a).toBe(true);
   });
 });
+
+describe("rate limits", () => {
+  it("count each signed-in person separately, and fake cookies don't buy a fresh allowance", async () => {
+    const small = await makeApp({ RATE_LIMIT_PER_MIN: "10" });
+    try {
+      const [a, b] = await Promise.all([login(small.app, "sales@demo.local"), login(small.app, "service@demo.local")]);
+      const codes = async (agent: Agent, n: number) => {
+        const out: number[] = [];
+        for (let i = 0; i < n; i++) out.push((await agent.get("/api/vehicles")).statusCode);
+        return out;
+      };
+      // Same IP (both injected from 127.0.0.1), separate allowances.
+      expect((await codes(a, 11)).at(-1)).toBe(429);
+      expect((await codes(b, 3)).every((c) => c === 200)).toBe(true);
+      const anon: number[] = [];
+      for (let i = 0; i < 11; i++) {
+        anon.push((await small.app.inject({ method: "GET", url: "/api/vehicles", remoteAddress: "10.9.9.9", headers: { cookie: `sid=fake${i}` } })).statusCode);
+      }
+      expect(anon[10]).toBe(429);
+      const logins: number[] = [];
+      for (let i = 0; i < 11; i++) {
+        logins.push(
+          (await small.app.inject({ method: "POST", url: "/api/auth/login", remoteAddress: "10.8.8.8", headers: { cookie: `sid=x${i}` }, payload: { email: "nobody@demo.local", password: "wrong-password-1" } })).statusCode,
+        );
+      }
+      expect(logins.at(-1)).toBe(429);
+    } finally {
+      await small.close();
+    }
+  });
+});
