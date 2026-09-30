@@ -2,6 +2,8 @@
 
 One app to run a car dealership group: **inventory, CRM, sales deals, service, documents and reports**, with logins for each role. Built on PostgreSQL, so it is safe to use with many staff and several branches at once.
 
+**Project guide (PDF):** [docs/PROJECT-GUIDE.pdf](docs/PROJECT-GUIDE.pdf) explains what this project is, the business problem it solves, the client's requirements, and how to build it from scratch, step by step.
+
 ![Dashboard](docs/screenshots/dashboard.png)
 
 ## What it does
