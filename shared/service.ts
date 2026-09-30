@@ -21,4 +21,10 @@ export const DEFAULT_SETTINGS: Settings = {
   labourRateCents: 12_500,
   partsTaxable: true,
   distanceUnit: "mi",
+  products: [
+    { description: "Extended warranty (3 years)", priceCents: 149_900, costCents: 62_000 },
+    { description: "Paint and fabric protection", priceCents: 69_900, costCents: 15_000 },
+    { description: "GAP insurance", priceCents: 59_900, costCents: 25_000 },
+    { description: "Window tint", priceCents: 29_900, costCents: 9_000 },
+  ],
 };

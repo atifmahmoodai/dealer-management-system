@@ -158,6 +158,8 @@ describe("deals", () => {
     const created = await sales.send("POST", "/api/deals", { customerId, vehicleId: v.id, leadId: lead.json().id, worksheet: worksheet({ tradeIn: trade }) });
     let d = created.json() as Deal;
     expect(d.status).toBe("draft");
+    // The used-car manager appraises the trade (salespeople can't set its value).
+    d = (await manager.send("PUT", `/api/deals/${d.id}`, { worksheet: worksheet({ tradeIn: trade }), notes: "", version: d.version })).json();
     // Front gross 25,000 − 20,000 − 500 over-allowance + doc fee: well above the minimum, so no approval needed.
     const sub = await act(sales, d, "submit");
     d = sub.json();
@@ -238,6 +240,27 @@ describe("deals", () => {
     const after = (await sales.get(`/api/deals/${d.id}`)).json() as Deal;
     expect(after.totals.taxCents).toBe(d.totals.taxCents);
     await admin.send("PUT", "/api/settings", s);
+  });
+
+  it("salespeople can't set costs to make a deal look better", async () => {
+    const v = await newVehicle();
+    const customerId = await newCustomer();
+    const bogus = await sales.send("POST", "/api/deals", { customerId, vehicleId: v.id, leadId: null, worksheet: worksheet({ addOns: [{ description: "Magic coating", priceCents: 500_000, costCents: 0 }] }) });
+    expect(bogus.statusCode).toBe(400);
+    // A listed product gets its real cost, whatever the salesperson sent.
+    let d = await newDeal(v.id, customerId, worksheet({ addOns: [{ description: "gap insurance", priceCents: 59_900, costCents: 0 }] }));
+    const asManager = (await manager.get(`/api/deals/${d.id}`)).json() as Deal;
+    expect(asManager.worksheet.addOns[0]).toEqual({ description: "GAP insurance", priceCents: 59_900, costCents: 25_000 });
+    // A trade-in's value is a manager's appraisal: until then the whole allowance counts against gross.
+    const trade = { vin: "", year: 2015, make: "Ford", model: "Focus", mileage: 120_000, allowanceCents: 600_000, acvCents: 600_000, payoffCents: 0 };
+    d = (await sales.send("PUT", `/api/deals/${d.id}`, { worksheet: worksheet({ tradeIn: trade }), notes: "", version: d.version })).json();
+    expect((await manager.get(`/api/deals/${d.id}`)).json().worksheet.tradeIn.acvCents).toBe(0);
+    expect((await act(sales, d, "submit")).json().status).toBe("pending_approval");
+    // The manager appraises it; the salesperson's later edit keeps that appraisal.
+    d = (await manager.get(`/api/deals/${d.id}`)).json();
+    d = (await manager.send("PUT", `/api/deals/${d.id}`, { worksheet: worksheet({ tradeIn: { ...trade, acvCents: 550_000 } }), notes: "", version: d.version })).json();
+    d = (await sales.send("PUT", `/api/deals/${d.id}`, { worksheet: worksheet({ tradeIn: { ...trade, acvCents: 999_999 }, depositCents: 200_000 }), notes: "", version: d.version })).json();
+    expect((await manager.get(`/api/deals/${d.id}`)).json().worksheet.tradeIn.acvCents).toBe(550_000);
   });
 
   it("cancelling releases the car", async () => {

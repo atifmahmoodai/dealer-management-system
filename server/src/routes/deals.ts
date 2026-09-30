@@ -5,7 +5,7 @@ import { tx, type Queryable } from "../db";
 import { badRequest, conflict, HttpError, notFound, parse, requireUser } from "../http";
 import { audit, DEAL_SELECT, getSettings, loadVehicle, newId, nextNumber, seesCost, toDeal } from "../repo/data";
 import { dealGross, dealTotals, worksheetProblems, type Worksheet } from "../../../shared/deal";
-import { dealCreateSchema, dealUpdateSchema } from "../../../shared/schemas";
+import { dealCreateSchema, dealUpdateSchema, type Role } from "../../../shared/schemas";
 import type { Settings } from "../../../shared/types";
 
 const versionSchema = z.object({ version: z.number().int(), reason: z.string().trim().max(500).default("") });
@@ -21,6 +21,26 @@ export async function syncVehicleStatus(c: Queryable, vehicleId: string) {
       WHERE id = $1`,
     [vehicleId],
   );
+}
+
+/**
+ * Salespeople can't set costs: add-on costs come from the product list, and a trade-in's real value
+ * (ACV) is a manager's appraisal. Otherwise a deal's gross could be made to look good enough to skip approval.
+ */
+export function applyRoleLimits(w: Worksheet, role: Role, s: Settings, previous: Worksheet | null): Worksheet {
+  if (seesCost(role)) return w;
+  const addOns = w.addOns.map((a) => {
+    const p = s.products.find((x) => x.description.toLowerCase() === a.description.trim().toLowerCase());
+    if (!p) throw badRequest("Choose add-ons from the product list.", { "worksheet.addOns": `"${a.description}" isn't on the product list` });
+    return { description: p.description, priceCents: a.priceCents, costCents: p.costCents };
+  });
+  let tradeIn = w.tradeIn;
+  if (tradeIn) {
+    const prev = previous?.tradeIn;
+    const same = prev && prev.vin === tradeIn.vin && prev.year === tradeIn.year && prev.make === tradeIn.make && prev.model === tradeIn.model && prev.mileage === tradeIn.mileage;
+    tradeIn = { ...tradeIn, acvCents: same ? prev.acvCents : 0 };
+  }
+  return { ...w, addOns, tradeIn };
 }
 
 function checkWorksheet(w: Worksheet, s: Settings) {
@@ -76,6 +96,7 @@ export async function dealRoutes(app: FastifyInstance) {
   app.post("/deals", { preHandler: sales }, async (req, reply) => {
     const d = parse(dealCreateSchema, req.body);
     const settings = await getSettings(app.db);
+    d.worksheet = applyRoleLimits(d.worksheet, req.session!.user.role, settings, null);
     checkWorksheet(d.worksheet, settings);
     const id = newId("d");
     await tx(app.db, async (c) => {
@@ -96,11 +117,12 @@ export async function dealRoutes(app: FastifyInstance) {
   app.put<{ Params: { id: string } }>("/deals/:id", { preHandler: sales }, async (req) => {
     const u = parse(dealUpdateSchema, req.body);
     const settings = await getSettings(app.db);
-    checkWorksheet(u.worksheet, settings);
     await tx(app.db, async (c) => {
       const d = await load(c, req.params.id, true);
       if (d.version !== u.version) throw conflict("Someone else changed this deal. Reload to see their changes.");
       if (d.status === "closed" || d.status === "cancelled") throw conflict(`A ${d.status} deal can't be changed.`);
+      u.worksheet = applyRoleLimits(u.worksheet, req.session!.user.role, settings, d.worksheet as Worksheet);
+      checkWorksheet(u.worksheet, settings);
       // Changing the numbers after submission needs a fresh submission (and approval, if the gross is low).
       await c.query("UPDATE deals SET worksheet = $2, notes = $3, status = 'draft', approved_by = NULL, approved_at = NULL, version = version + 1, updated_at = now() WHERE id = $1", [
         d.id,

@@ -181,7 +181,7 @@ export async function seedDemo(c: PoolClient, opts: { now: Date; timeZone: strin
           salePriceCents: v.list,
           discountCents: discount,
           docFeeCents: DEFAULT_SETTINGS.docFeeCents,
-          addOns: r() < 0.45 ? [{ description: "Extended warranty (3 yr)", priceCents: 149_900, costCents: 62_000 }] : [],
+          addOns: r() < 0.45 ? [{ description: "Extended warranty (3 years)", priceCents: 149_900, costCents: 62_000 }] : [],
           tradeIn: null,
           depositCents: 100_000 * int(5, 30),
           finance: r() < 0.6 ? { lender: pick(["First Auto Bank", "Metro Credit Union"]), aprPercent: pick([4.9, 6.9, 8.9]), termMonths: pick([48, 60, 72]) } : null,

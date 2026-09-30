@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# One image: the API serves the built tracker web app, and runs the daily scrape.
+# One image: the API serves the built DMS web app.
 
 FROM node:22-bookworm-slim AS build
 WORKDIR /app

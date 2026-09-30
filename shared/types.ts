@@ -12,6 +12,8 @@ export interface Settings {
   labourRateCents: number;
   partsTaxable: boolean;
   distanceUnit: "mi" | "km";
+  /** F&I products salespeople can add to a deal, with the dealer's cost. */
+  products: { description: string; priceCents: number; costCents: number }[];
 }
 
 export interface Branch {

@@ -24,7 +24,7 @@ describe("api client", () => {
 
   it("turns validation errors into field messages", async () => {
     vi.stubGlobal("fetch", async () => reply(400, { error: "validation", message: "Please check the highlighted fields.", details: { email: "Enter a valid email" } }));
-    const e = (await api("/competitors", { method: "POST", body: {} }).catch((x) => x)) as ApiError;
+    const e = (await api("/customers", { method: "POST", body: {} }).catch((x) => x)) as ApiError;
     expect(e).toBeInstanceOf(ApiError);
     expect(e.details).toEqual({ email: "Enter a valid email" });
     expect(errorText(e)).toBe("Enter a valid email");
@@ -36,7 +36,7 @@ describe("api client", () => {
     setUnauthorizedHandler(onExpired);
     await api("/auth/me").catch(() => {});
     expect(onExpired).not.toHaveBeenCalled();
-    await api("/report").catch(() => {});
+    await api("/vehicles").catch(() => {});
     expect(onExpired).toHaveBeenCalledOnce();
   });
 

@@ -49,6 +49,7 @@ export const settingsSchema = z.object({
   labourRateCents: cents,
   partsTaxable: z.boolean(),
   distanceUnit: z.enum(["mi", "km"]),
+  products: z.array(z.object({ description: text(120).min(1), priceCents: cents, costCents: cents })).max(30),
 });
 
 // ---- customers ----
