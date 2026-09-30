@@ -231,6 +231,7 @@ try {
 
   console.log("Admin");
   await signIn(page, "admin@demo.local");
+  check((await page.title()) === "Dealer Management System", "browser tab shows the product name");
   await page.goto(`${BASE}settings`);
   await page.fill("label:has-text('Company name') input", "Smoke Motor Group");
   await page.click("button:has-text('Save settings')");
